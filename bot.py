@@ -1,7 +1,7 @@
 import logging
 import random
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext
 from dotenv import load_dotenv
 import os
 
@@ -128,11 +128,11 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CHARACTER_NAME: [MessageHandler(Filters.text & ~Filters.command, character_name)],
-            CHARACTER_GENDER: [MessageHandler(Filters.text & ~Filters.command, character_gender)],
-            CHARACTER_CLASS: [MessageHandler(Filters.text & ~Filters.command, character_class)],
-            CHARACTER_STATS: [MessageHandler(Filters.text & ~Filters.command, character_stats)],
-            MAIN_MENU: [MessageHandler(Filters.text & ~Filters.command, main_menu)],
+            CHARACTER_NAME: [MessageHandler(filters.Text & ~filters.Command, character_name)],
+            CHARACTER_GENDER: [MessageHandler(filters.Text & ~filters.Command, character_gender)],
+            CHARACTER_CLASS: [MessageHandler(filters.Text & ~filters.Command, character_class)],
+            CHARACTER_STATS: [MessageHandler(filters.Text & ~filters.Command, character_stats)],
+            MAIN_MENU: [MessageHandler(filters.Text & ~filters.Command, main_menu)],
         },
         fallbacks=[],
     )
