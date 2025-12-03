@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 
 # توکن ربات که از BotFather دریافت کردی
-TOKEN = 'توکن_ربات_تو'
+TOKEN = '8208865404:AAFVWngVgXT5fQYAJNxLej9yuEdvafx5OrE'
 
 # تابعی که برای دستور /start اجرا میشه
 def start(update: Update, context: CallbackContext) -> None:
