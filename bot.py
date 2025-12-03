@@ -2,7 +2,6 @@ import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackContext
 import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # فعال کردن لاگ‌ها
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -43,6 +42,7 @@ def main() -> None:
 
     # پورت خود را از رندر دات کام بگیریم
     port = int(os.environ.get("PORT", 5000))  # پورت مشخص شده
+    logger.info(f"Using port: {port}")  # لاگ برای بررسی
     application.run_polling(port=port)
 
 if __name__ == '__main__':
