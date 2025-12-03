@@ -16,18 +16,17 @@ ADMIN_ID = 7681488759  # جای این عدد رو با ID خودتون عوض �
 # تابعی که برای دستور /start اجرا میشه
 async def start(update: Update, context: CallbackContext) -> None:
     user_id = update.message.from_user.id
+    logger.info(f"User {update.message.from_user.username} with ID {user_id} started the bot.")  # لاگ برای چک کردن
     if user_id == ADMIN_ID:
-        # اگر کاربر مدیر بود
         await update.message.reply_text('سلام مدیر عزیز! از طریق دکمه‌ها تغییرات رو انجام بده.')
     else:
-        # اگر کاربر مدیر نبود
         await update.message.reply_text('سلام! خوش اومدی به ربات RPG.')
 
 # دستور مدیر برای دسترسی به پنل
 async def admin_panel(update: Update, context: CallbackContext) -> None:
     user_id = update.message.from_user.id
+    logger.info(f"User {update.message.from_user.username} requested admin panel.")  # لاگ برای چک کردن
     if user_id == ADMIN_ID:
-        # پنل مدیریتی که فقط مدیر می‌تونه دسترسی داشته باشه
         await update.message.reply_text('این پنل مدیریتی است. از اینجا می‌تونی تغییرات رو انجام بدی.')
     else:
         await update.message.reply_text('شما دسترسی به این بخش ندارید.')
