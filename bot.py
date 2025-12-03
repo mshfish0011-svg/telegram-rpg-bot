@@ -1,146 +1,199 @@
 import logging
 import random
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ConversationHandler,
+    ContextTypes,
+)
 
-# Load the .env file to get the bot token
+# Load .env for local dev; in Render you should set ENV vars in the dashboard
 load_dotenv()
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
-# Set up logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID_ENV = os.getenv("ADMIN_ID")  # optional
+
+# Basic checks
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN is not set. Set it in environment variables.")
+
+try:
+    ADMIN_ID = int(ADMIN_ID_ENV) if ADMIN_ID_ENV else None
+except ValueError:
+    ADMIN_ID = None
+
+# Logging
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Admin panel access (replace with your admin's Telegram ID)
-ADMIN_ID = 'your_admin_telegram_id_here'
-
-# User data storage (to simulate progress and levels)
+# In-memory user store (use a real DB in production)
 user_data = {}
 
-# States for the conversation handler
-START, CHARACTER_NAME, CHARACTER_GENDER, CHARACTER_CLASS, CHARACTER_STATS, MAIN_MENU = range(6)
+# Conversation states
+START, CHARACTER_NAME, CHARACTER_GENDER, CHARACTER_CLASS, CHARACTER_STATS = range(5)
 
-# Check if the user is admin
 def is_admin(update: Update) -> bool:
-    return str(update.message.from_user.id) == ADMIN_ID
+    user = update.effective_user
+    return (ADMIN_ID is not None) and (user is not None) and (user.id == ADMIN_ID)
 
-# Command to access the admin panel
-def admin_panel(update: Update, context: CallbackContext) -> None:
-    if is_admin(update):
-        update.message.reply_text("Welcome to the Admin Panel!\nHere you can check user stats, top players, etc.")
-        show_user_stats(update)
-    else:
-        update.message.reply_text("You do not have access to the Admin Panel.")
-
-# Show user stats
-def show_user_stats(update: Update) -> None:
-    active_users = len([user for user in user_data.values() if user.get('active', False)])
+async def show_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     total_users = len(user_data)
-    top_players = sorted(user_data, key=lambda x: user_data[x].get('level', 0), reverse=True)[:5]
+    active_users = len([u for u in user_data.values() if u.get("active")])
+    # sort by level (if present)
+    top_players = sorted(user_data.items(), key=lambda kv: kv[1].get("level", 0), reverse=True)[:5]
 
-    stats_message = (
-        f"Total Users: {total_users}\n"
-        f"Active Users: {active_users}\n"
-        f"Top 5 Players:\n" +
-        "\n".join(f"{i+1}. {user_data[player]['name']} (Level: {user_data[player]['level']})" for i, player in enumerate(top_players))
-    )
+    lines = [f"Total Users: {total_users}", f"Active Users: {active_users}", "Top 5 Players:"]
+    for i, (uid, data) in enumerate(top_players):
+        name = data.get("name", f"User {uid}")
+        level = data.get("level", 1)
+        lines.append(f"{i+1}. {name} (Level: {level})")
 
-    update.message.reply_text(stats_message)
+    await update.message.reply_text("\n".join(lines))
 
-# Start the conversation and show the welcome screen
-def start(update: Update, context: CallbackContext) -> int:
-    user_id = update.message.from_user.id
-    user_data[user_id] = {'stats': {'strength': 0, 'agility': 0, 'intelligence': 0}, 'level': 1}
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if is_admin(update):
+        await update.message.reply_text("Welcome to the Admin Panel!\nHere you can check user stats, top players, etc.")
+        await show_user_stats(update, context)
+    else:
+        await update.message.reply_text("You do not have access to the Admin Panel.")
 
-    update.message.reply_text(
-        "Welcome to the World of [Game Name]!\n\n"
-        "Ready to begin your adventure?\n\n"
-        "Type /start to create your character.",
-        reply_markup=None
+# Start -> ask for name
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    if user is None:
+        return ConversationHandler.END
+    user_id = user.id
+    # initialize minimal user state
+    user_data.setdefault(user_id, {"stats": {"strength": 0, "agility": 0, "intelligence": 0}, "level": 1, "active": True})
+    await update.message.reply_text(
+        "Welcome to the World of [Game Name]!\nLet's create your character.\n\nWhat is your character's name?"
     )
     return CHARACTER_NAME
 
-# Character name input
-def character_name(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text("What is your character's name?")
+# CHARACTER_NAME -> store name, ask gender
+async def character_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    if user is None:
+        return ConversationHandler.END
+    user_id = user.id
+    name = update.message.text.strip()
+    user_data[user_id]["name"] = name
+    await update.message.reply_text("Choose your character's gender:\n1. Male\n2. Female\n(Reply with 1 or 2 or type Male/Female)")
     return CHARACTER_GENDER
 
-# Choose gender
-def character_gender(update: Update, context: CallbackContext) -> int:
-    user_id = update.message.from_user.id
-    name = update.message.text
-    user_data[user_id]['name'] = name
-    update.message.reply_text("Choose your character's gender:\n1. Male\n2. Female")
+# CHARACTER_GENDER -> store gender, ask class
+async def character_gender(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    user_id = user.id
+    text = update.message.text.strip().lower()
+    if text in ("1", "male", "m"):
+        gender = "Male"
+    elif text in ("2", "female", "f"):
+        gender = "Female"
+    else:
+        await update.message.reply_text("Invalid choice. Reply with 1 for Male or 2 for Female.")
+        return CHARACTER_GENDER
+
+    user_data[user_id]["gender"] = gender
+    await update.message.reply_text("Choose your class:\n1. Wizard\n2. Warrior\n3. Archer\n(Reply with 1/2/3 or the class name)")
     return CHARACTER_CLASS
 
-# Choose class
-def character_class(update: Update, context: CallbackContext) -> int:
-    user_id = update.message.from_user.id
-    gender = update.message.text
-    user_data[user_id]['gender'] = gender
-    update.message.reply_text("Choose your class:\n1. Wizard\n2. Warrior\n3. Archer")
+# CHARACTER_CLASS -> store class, ask for stats distribution
+async def character_class(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    user_id = user.id
+    text = update.message.text.strip().lower()
+    classes = {"1": "Wizard", "2": "Warrior", "3": "Archer", "wizard": "Wizard", "warrior": "Warrior", "archer": "Archer"}
+    chosen = classes.get(text)
+    if not chosen:
+        await update.message.reply_text("Invalid class. Reply with 1/2/3 or Wizard/Warrior/Archer.")
+        return CHARACTER_CLASS
+
+    user_data[user_id]["class"] = chosen
+    await update.message.reply_text(
+        "Distribute 10 points among Strength, Agility, Intelligence.\n"
+        "Reply with three numbers separated by spaces, e.g.:\n3 4 3"
+    )
     return CHARACTER_STATS
 
-# Set stats (Strength, Agility, Intelligence)
-def character_stats(update: Update, context: CallbackContext) -> int:
-    user_id = update.message.from_user.id
-    char_class = update.message.text
-    user_data[user_id]['class'] = char_class
+# CHARACTER_STATS -> parse, validate, finish
+async def character_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    user_id = user.id
+    text = update.message.text.strip()
+    parts = text.split()
+    if len(parts) != 3:
+        await update.message.reply_text("Please reply with exactly three numbers, e.g. `3 4 3`.")
+        return CHARACTER_STATS
+    try:
+        s, a, i = map(int, parts)
+    except ValueError:
+        await update.message.reply_text("All values must be integers.")
+        return CHARACTER_STATS
 
-    update.message.reply_text(
-        f"Class: {char_class} - Now, distribute your initial stats:\n"
-        "Strength (0-10):\n"
-        "Agility (0-10):\n"
-        "Intelligence (0-10):"
-    )
-    return MAIN_MENU
+    total = s + a + i
+    if total != 10:
+        await update.message.reply_text("Total must equal 10. Try again.")
+        return CHARACTER_STATS
+    for val in (s, a, i):
+        if val < 0 or val > 10:
+            await update.message.reply_text("Each value must be between 0 and 10.")
+            return CHARACTER_STATS
 
-# Show the main menu with actions
-def main_menu(update: Update, context: CallbackContext) -> int:
-    user_id = update.message.from_user.id
-    stats = user_data[user_id]['stats']
-    update.message.reply_text(
-        f"Character Profile:\n"
-        f"Name: {user_data[user_id]['name']}\n"
+    user_data[user_id]["stats"] = {"strength": s, "agility": a, "intelligence": i}
+    await update.message.reply_text(
+        f"Character created!\nName: {user_data[user_id]['name']}\n"
         f"Gender: {user_data[user_id]['gender']}\n"
         f"Class: {user_data[user_id]['class']}\n"
-        f"Stats: Strength: {stats['strength']} Agility: {stats['agility']} Intelligence: {stats['intelligence']}\n\n"
-        "You can now start exploring the world!\n\n"
-        "/explore - Begin your journey!\n"
-        "/inventory - View your inventory",
-        reply_markup=None
+        f"Stats: Strength {s}, Agility {a}, Intelligence {i}\n\n"
+        "You can now start exploring: /explore\nCheck inventory: /inventory"
     )
     return ConversationHandler.END
 
-# /explore command to simulate map exploration
-def explore(update: Update, context: CallbackContext) -> None:
+async def explore(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     locations = ["Forest of Shadows", "Dungeon of Doom", "Merchant District", "Mysterious Cave"]
-    random_location = random.choice(locations)
-    update.message.reply_text(f"You're exploring the {random_location}!\nWhat will you do next?")
+    location = random.choice(locations)
+    await update.message.reply_text(f"You're exploring the {location}!\nWhat will you do next?")
 
-# Main function to set up the bot and handlers
+async def inventory(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if user is None:
+        return
+    data = user_data.get(user.id, {})
+    inv = data.get("inventory", [])
+    if not inv:
+        await update.message.reply_text("Your inventory is empty.")
+    else:
+        await update.message.reply_text("Your inventory:\n" + "\n".join(inv))
+
 def main() -> None:
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler("start", start)],
         states={
             CHARACTER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_name)],
             CHARACTER_GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_gender)],
             CHARACTER_CLASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_class)],
             CHARACTER_STATS: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_stats)],
-            MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)],
         },
         fallbacks=[],
+        allow_reentry=True,
     )
 
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler("explore", explore))
-    application.add_handler(CommandHandler("admin", admin_panel))  # Admin panel command
+    application.add_handler(CommandHandler("inventory", inventory))
+    application.add_handler(CommandHandler("admin", admin_panel))
 
+    # For Render: if you plan to use polling, add this as a Background Worker with command "python bot.py"
+    # For webhooks: implement a webhook endpoint and use application.run_webhook(...)
     application.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
