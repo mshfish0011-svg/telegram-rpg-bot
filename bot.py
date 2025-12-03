@@ -16,7 +16,7 @@ async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('سلام! به ربات RPG خوش اومدی.')
 
 # اصلی‌ترین قسمت برنامه
-async def main() -> None:
+def main() -> None:
     # اتصال به ربات با استفاده از توکن
     application = Application.builder().token(TOKEN).build()
 
@@ -24,8 +24,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("start", start))
 
     # شروع ربات
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    main()
