@@ -1,29 +1,31 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackContext
+import logging
+
+# فعال کردن لاگ‌ها
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # توکن ربات که از BotFather دریافت کردی
 TOKEN = '8208865404:AAFVWngVgXT5fQYAJNxLej9yuEdvafx5OrE'
 
 # تابعی که برای دستور /start اجرا میشه
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('سلام! به ربات RPG خوش اومدی.')
+async def start(update: Update, context: CallbackContext) -> None:
+    logger.info(f'User {update.message.from_user.username} started the bot')
+    await update.message.reply_text('سلام! به ربات RPG خوش اومدی.')
 
 # اصلی‌ترین قسمت برنامه
-def main() -> None:
+async def main() -> None:
     # اتصال به ربات با استفاده از توکن
-    updater = Updater(TOKEN)
-
-    # گرفتن Dispatcher برای ارسال دستورات
-    dispatcher = updater.dispatcher
+    application = Application.builder().token(TOKEN).build()
 
     # افزودن دستور start
-    dispatcher.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("start", start))
 
     # شروع ربات
-    updater.start_polling()
-
-    # منتظر دریافت پیام‌ها
-    updater.idle()
+    await application.run_polling()
 
 if __name__ == '__main__':
-    main()
+    import asyncio
+    asyncio.run(main())
