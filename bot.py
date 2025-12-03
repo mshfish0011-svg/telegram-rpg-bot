@@ -1,6 +1,8 @@
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackContext
 import logging
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # فعال کردن لاگ‌ها
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -16,7 +18,7 @@ ADMIN_ID = 7681488759  # جای این عدد رو با ID خودتون عوض �
 # تابعی که برای دستور /start اجرا میشه
 async def start(update: Update, context: CallbackContext) -> None:
     user_id = update.message.from_user.id
-    logger.info(f"User {update.message.from_user.username} with ID {user_id} started the bot.")  # لاگ برای چک کردن
+    logger.info(f"User {update.message.from_user.username} with ID {user_id} started the bot.")
     if user_id == ADMIN_ID:
         await update.message.reply_text('سلام مدیر عزیز! از طریق دکمه‌ها تغییرات رو انجام بده.')
     else:
@@ -25,13 +27,13 @@ async def start(update: Update, context: CallbackContext) -> None:
 # دستور مدیر برای دسترسی به پنل
 async def admin_panel(update: Update, context: CallbackContext) -> None:
     user_id = update.message.from_user.id
-    logger.info(f"User {update.message.from_user.username} requested admin panel.")  # لاگ برای چک کردن
+    logger.info(f"User {update.message.from_user.username} requested admin panel.")
     if user_id == ADMIN_ID:
         await update.message.reply_text('این پنل مدیریتی است. از اینجا می‌تونی تغییرات رو انجام بدی.')
     else:
         await update.message.reply_text('شما دسترسی به این بخش ندارید.')
 
-# اصلی‌ترین قسمت برنامه
+# اجرای ربات
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
 
@@ -39,8 +41,9 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("admin_panel", admin_panel))
 
-    # شروع ربات
-    application.run_polling()
+    # پورت خود را از رندر دات کام بگیریم
+    port = int(os.environ.get("PORT", 5000))  # پورت مشخص شده
+    application.run_polling(port=port)
 
 if __name__ == '__main__':
     main()
