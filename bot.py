@@ -1,7 +1,7 @@
 import logging
 import random
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext
 from dotenv import load_dotenv
 import os
 
@@ -122,27 +122,25 @@ def explore(update: Update, context: CallbackContext) -> None:
 
 # Main function to set up the bot and handlers
 def main() -> None:
-    updater = Updater(TELEGRAM_TOKEN)
-    dp = updater.dispatcher
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CHARACTER_NAME: [MessageHandler(filters.Text & ~filters.Command, character_name)],
-            CHARACTER_GENDER: [MessageHandler(filters.Text & ~filters.Command, character_gender)],
-            CHARACTER_CLASS: [MessageHandler(filters.Text & ~filters.Command, character_class)],
-            CHARACTER_STATS: [MessageHandler(filters.Text & ~filters.Command, character_stats)],
-            MAIN_MENU: [MessageHandler(filters.Text & ~filters.Command, main_menu)],
+            CHARACTER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_name)],
+            CHARACTER_GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_gender)],
+            CHARACTER_CLASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_class)],
+            CHARACTER_STATS: [MessageHandler(filters.TEXT & ~filters.COMMAND, character_stats)],
+            MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)],
         },
         fallbacks=[],
     )
 
-    dp.add_handler(conv_handler)
-    dp.add_handler(CommandHandler("explore", explore))
-    dp.add_handler(CommandHandler("admin", admin_panel))  # Admin panel command
+    application.add_handler(conv_handler)
+    application.add_handler(CommandHandler("explore", explore))
+    application.add_handler(CommandHandler("admin", admin_panel))  # Admin panel command
 
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
